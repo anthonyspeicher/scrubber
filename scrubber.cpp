@@ -2,9 +2,10 @@
 # 1/13/2026
 # An EXIF metadata scrubber
 
+/// remove iostream?
 #include <iostream>
-#include <fstream>
 #include <cstdio>
+#include <cstdlib>
 
 /// CURRENTLY ONLY SUPPORTS JPEG IMAGE TYPES
 
@@ -38,6 +39,7 @@ bool main (int argc, const char *argv[]) {
   } else std::fwrite(buffer, 1, 2, output);
 
   /// loop until start of APP1 segment (EXIF data)
+  /// ADD HANDLING FOR IF NO APP1 SEGMENT IS PRESENT
   while (std::fread(buffer, 1, 2, input) == 2 && buffer[0] != 0xFF && buffer[1] != 0xE1) {
     /// read length bytes
     std::fread(buffer, 1, 2, input);
