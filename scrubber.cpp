@@ -59,6 +59,7 @@ int main (int argc, const char *argv[]) {
   while (fread(buffer, 1, 2, input) == 2 && buffer[1] != 0xDA) {
     if (buffer[1] >= 0xE0 && buffer[1] <= 0xEF) {
       /// remove metadata - read length bytes
+      printf("Marker: %X %X\n", buffer[0], buffer[1]);
       fread(buffer, 1, 2, input);
       len = (buffer[0] << 8) | buffer[1];
 
@@ -70,6 +71,7 @@ int main (int argc, const char *argv[]) {
 
       /// read length bytes
       fread(buffer, 1, 2, input);
+      fwrite(buffer, 1, 2, output);
       len = (buffer[0] << 8 | buffer[1]);
       long segment_length = len - 2;
       uint8_t buf[64];
@@ -83,6 +85,7 @@ int main (int argc, const char *argv[]) {
     }
 
   }
+  printf("Marker: %X %X\n", buffer[0], buffer[1]);
   fwrite(buffer, 1, 2, output);
 
   /// copy rest of file verbatim ----------------------------------------------------------------------
