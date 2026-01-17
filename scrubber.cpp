@@ -34,7 +34,7 @@ int main (int argc, const char *argv[]) {
   uint8_t buffer[2];
   uint16_t len;
 
-  /// find file length --------------------------------------------------------------------------------
+  /// find length until 0xFF 0xD9 (EOI marker, may be metadata after) ----------------------------------
   if (fseek(input, 0, SEEK_END) != 0) {
     perror("fseek failed");
     exit(1);
@@ -43,6 +43,30 @@ int main (int argc, const char *argv[]) {
   long file_length = ftell(input);
   if (file_length < 0) {
     perror("ftell failed");
+  }
+
+  /// using 1kb chunks to reduce fread calls, reverse search data for EOI marker
+  uint8_t temp_buf[1024];
+  bool found = 0;
+  while (!found && file_length > 0) {
+    file_length -= 1024;
+    fseek(input, file_length, SEEK_SET);
+    fread(temp_buf, 1, 1024, input);
+
+    /// search temp_buf for EOI
+    for (size_t i(1022); i >= 0; i--) {
+      if (temp_buf[i] == 0xFF && temp_buf[i + 1] == 0xD9) {
+        found = 1;
+        file_length += i;
+        break;
+      }
+    }
+  }
+
+  /// sanity check
+  if (file_length < 0) {
+    fprintf(stderr, "File corrupted or not of type JPEG.\n");
+    exit(1);
   }
 
   rewind(input);
@@ -57,9 +81,8 @@ int main (int argc, const char *argv[]) {
 
   /// loop until start of SOS segment (picture data) to remove all APP metadata -----------------------
   while (fread(buffer, 1, 2, input) == 2 && buffer[1] != 0xDA) {
-    if (buffer[1] >= 0xE0 && buffer[1] <= 0xEF) {
+    if (buffer[1] > 0xE0 && buffer[1] <= 0xEF) {
       /// remove metadata - read length bytes
-      printf("Marker: %X %X\n", buffer[0], buffer[1]);
       fread(buffer, 1, 2, input);
       len = (buffer[0] << 8) | buffer[1];
 
@@ -85,7 +108,6 @@ int main (int argc, const char *argv[]) {
     }
 
   }
-  printf("Marker: %X %X\n", buffer[0], buffer[1]);
   fwrite(buffer, 1, 2, output);
 
   /// copy rest of file verbatim ----------------------------------------------------------------------
