@@ -176,9 +176,49 @@ void parse_JPEG(FILE* input, FILE* output) {
 }
 
 void parse_PNG(FILE* input, FILE* output) {
-  /// NOTE TO SELF - remove tEXt, zTXt, iTXt, eXIf, tIME, and pHYs segments
-  std::unordered_set<std::array<uint8_t, 4>, Array_Hash> metadata_headers; /// add headers later
+  /// metadata segment headers
+  const std::unordered_set<std::array<uint8_t, 4>, Array_Hash> metadata_headers {
+    {0x74, 0x45, 0x58, 0x74},   /// tEXt
+    {0x7A, 0x54, 0x58, 0x74},   /// zTXt
+    {0x69, 0x54, 0x58, 0x74},   /// iTXt
+    {0x65, 0x58, 0x49, 0x66},   /// eXIf
+    {0x74, 0x49, 0x4D, 0x45},   /// tIME
+    {0x70, 0x48, 0x59, 0x73}    /// pHYs
+  };
+  const std::array<uint8_t, 4> IEND = {0x49, 0x45, 0x4E, 0x44};
 
   uint8_t buffer[4];
+  std::array<uint8_t, 4> header;
   uint8_t data[256];
+  uint32_t length;
+  long current;
+
+  while (fread(buffer, 1, 4, input) == 4) {
+    /// format length bytes
+    length = ((buffer[0] << 24) | (buffer[1] << 16) | (buffer[2] << 8) | buffer[3]);
+    length += 4; /// CRC bytes
+
+    /// check header
+    fread(header.data(), 1, 4, input);
+    if (metadata_headers.find(header) != metadata_headers.end()) {
+      /// skip metadata
+      fseek(input, length, SEEK_CUR);
+    } else {
+      /// write data
+      fwrite(buffer, 1, 4, output);
+      fwrite(header.data(), 1, 4, output);
+
+      while (length > 0) {
+        current = length > 256 ? 256 : length;
+        fread(data, 1, current, input);
+        fwrite(data, 1, current, output);
+        length -= current;
+      }
+
+      /// IEND (EOF) handling
+      if (memcmp(header.data(), IEND.data(), 4 * sizeof(uint8_t)) == 0) {
+        break;
+      }
+    }
+  }
 }
